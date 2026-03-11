@@ -35,26 +35,32 @@ jobs:
           DEPLOY_HOST: ${{ secrets.GCP_VM_HOST }}
           DEPLOY_USER: ${{ secrets.GCP_VM_USER }}
         run: |
+          HOST=$(echo "$DEPLOY_HOST" | tr -d '[:space:]')
+          USER=$(echo "$DEPLOY_USER" | tr -d '[:space:]')
           ssh -o StrictHostKeyChecking=no \
-            "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            "mkdir -p /home/${DEPLOY_USER}/backend-infra/devcollab-backend /opt/devcollab /plans"
+            "${USER}@${HOST}" \
+            "mkdir -p /home/${USER}/backend-infra/devcollab-backend /opt/devcollab /plans"
 
       - name: Copy build to VM
         env:
           DEPLOY_HOST: ${{ secrets.GCP_VM_HOST }}
           DEPLOY_USER: ${{ secrets.GCP_VM_USER }}
         run: |
+          HOST=$(echo "$DEPLOY_HOST" | tr -d '[:space:]')
+          USER=$(echo "$DEPLOY_USER" | tr -d '[:space:]')
           scp -o StrictHostKeyChecking=no -r \
             dist package.json package-lock.json \
-            "${DEPLOY_USER}@${DEPLOY_HOST}:/home/${DEPLOY_USER}/backend-infra/devcollab-backend/"
+            "${USER}@${HOST}:/home/${USER}/backend-infra/devcollab-backend/"
 
       - name: Deploy and restart
         env:
           DEPLOY_HOST: ${{ secrets.GCP_VM_HOST }}
           DEPLOY_USER: ${{ secrets.GCP_VM_USER }}
         run: |
-          ssh -o StrictHostKeyChecking=no "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            "cd /home/${DEPLOY_USER}/backend-infra/devcollab-backend && \
+          HOST=$(echo "$DEPLOY_HOST" | tr -d '[:space:]')
+          USER=$(echo "$DEPLOY_USER" | tr -d '[:space:]')
+          ssh -o StrictHostKeyChecking=no "${USER}@${HOST}" \
+            "cd /home/${USER}/backend-infra/devcollab-backend && \
              npm ci --omit=dev && \
              (pm2 restart devcollab-backend || pm2 start ecosystem.config.js) && \
              pm2 save --force"
