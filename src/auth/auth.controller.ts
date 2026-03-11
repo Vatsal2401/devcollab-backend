@@ -14,6 +14,16 @@ class LoginDto {
   password: string;
 }
 
+class BootstrapDto {
+  @IsString()
+  @MinLength(3)
+  username: string;
+
+  @IsString()
+  @MinLength(6)
+  password: string;
+}
+
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -30,6 +40,12 @@ export class AuthController {
   async logout() {
     // JWT is stateless; client drops the token.
     return { message: 'Logged out successfully' };
+  }
+
+  @Post('bootstrap')
+  @HttpCode(HttpStatus.CREATED)
+  async bootstrap(@Body() dto: BootstrapDto) {
+    return this.authService.bootstrap(dto.username, dto.password);
   }
 
   @Get('me')
