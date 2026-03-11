@@ -1,12 +1,32 @@
-import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus, Headers } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Delete,
+  Body,
+  Param,
+  Query,
+  Res,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+  Headers,
+} from '@nestjs/common';
+import { Response } from 'express';
 import { GithubService } from './github.service';
+import { GithubOAuthService } from './github-oauth.service';
+import { WorkspaceService } from './workspace.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserEntity } from '../users/entities/user.entity';
 
 @Controller('github')
 export class GithubController {
-  constructor(private readonly githubService: GithubService) {}
+  constructor(
+    private readonly githubService: GithubService,
+    private readonly githubOAuthService: GithubOAuthService,
+    private readonly workspaceService: WorkspaceService,
+  ) {}
 
   @Post('pr')
   @UseGuards(JwtAuthGuard)
@@ -26,5 +46,76 @@ export class GithubController {
       return this.githubService.handleWebhook(payload);
     }
     return { received: true };
+  }
+
+  @Get('oauth/connect')
+  @UseGuards(JwtAuthGuard)
+  connect(@CurrentUser() user: UserEntity, @Res() res: Response) {
+    const url = this.githubOAuthService.getOAuthUrl(user.id);
+    return res.redirect(url);
+  }
+
+  @Get('oauth/callback')
+  async callback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Res() res: Response,
+  ) {
+    try {
+      await this.githubOAuthService.handleCallback(code, state);
+      const frontendUrl = process.env.FRONTEND_URL || 'https://devcollab-frontend.vercel.app';
+      return res.redirect(`${frontendUrl}/settings?github=connected`);
+    } catch (e) {
+      const frontendUrl = process.env.FRONTEND_URL || 'https://devcollab-frontend.vercel.app';
+      return res.redirect(`${frontendUrl}/settings?github=error`);
+    }
+  }
+
+  @Get('oauth/status')
+  @UseGuards(JwtAuthGuard)
+  getStatus(@CurrentUser() user: UserEntity) {
+    return {
+      connected: !!user.githubAccessToken,
+      username: user.githubUsername,
+      avatarUrl: user.githubAvatarUrl,
+    };
+  }
+
+  @Delete('oauth/disconnect')
+  @UseGuards(JwtAuthGuard)
+  async disconnect(@CurrentUser() user: UserEntity) {
+    await this.githubOAuthService.disconnectGithub(user.id);
+    return { message: 'GitHub disconnected' };
+  }
+
+  @Get('repos')
+  @UseGuards(JwtAuthGuard)
+  async listRepos(@CurrentUser() user: UserEntity) {
+    return this.githubOAuthService.listRepos(user.id);
+  }
+
+  @Post('repos/setup')
+  @UseGuards(JwtAuthGuard)
+  async setupRepo(
+    @CurrentUser() user: UserEntity,
+    @Body() dto: { repoFullName: string; defaultBranch: string },
+  ) {
+    return this.workspaceService.setupRepo(user.id, dto.repoFullName, dto.defaultBranch);
+  }
+
+  @Delete('repos/:repoName')
+  @UseGuards(JwtAuthGuard)
+  async removeRepo(
+    @CurrentUser() user: UserEntity,
+    @Param('repoName') repoName: string,
+  ) {
+    await this.workspaceService.removeRepo(user.id, repoName);
+    return { message: `Workspace ${repoName} removed` };
+  }
+
+  @Get('repos/status/:repoName')
+  @UseGuards(JwtAuthGuard)
+  getRepoStatus(@Param('repoName') repoName: string) {
+    return this.workspaceService.getWorkspaceStatus(repoName);
   }
 }

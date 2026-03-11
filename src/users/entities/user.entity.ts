@@ -44,4 +44,13 @@ export class UserEntity {
 
   @Column({ name: 'last_seen', nullable: true })
   lastSeen: Date;
+
+  @Column({ name: 'github_access_token', type: 'text', nullable: true })
+  githubAccessToken: string | null;
+
+  @Column({ name: 'github_username', type: 'text', nullable: true })
+  githubUsername: string | null;
+
+  @Column({ name: 'github_avatar_url', type: 'text', nullable: true })
+  githubAvatarUrl: string | null;
 }
