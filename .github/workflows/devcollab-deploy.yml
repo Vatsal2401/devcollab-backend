@@ -39,18 +39,18 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no \
             $DEPLOY_USER@$DEPLOY_HOST \
-            "mkdir -p ~/backend-infra/devcollab-backend /opt/devcollab /plans"
+            "mkdir -p /home/$DEPLOY_USER/backend-infra/devcollab-backend /opt/devcollab /plans"
 
       - name: Copy build to VM
         run: |
           scp -o StrictHostKeyChecking=no -r \
             dist package.json package-lock.json \
-            $DEPLOY_USER@$DEPLOY_HOST:~/backend-infra/devcollab-backend/
+            $DEPLOY_USER@$DEPLOY_HOST:/home/$DEPLOY_USER/backend-infra/devcollab-backend/
 
       - name: Deploy and restart
         run: |
           ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST \
-            "cd ~/backend-infra/devcollab-backend && \
+            "cd /home/$DEPLOY_USER/backend-infra/devcollab-backend && \
              npm ci --omit=dev && \
              (pm2 restart devcollab-backend || pm2 start ecosystem.config.js) && \
              pm2 save --force"
