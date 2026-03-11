@@ -11,6 +11,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { RepoConfigsModule } from './repo-configs/repo-configs.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { GatewayModule } from './gateway/gateway.module';
+import { TerminalModule } from './terminal/terminal.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { GatewayModule } from './gateway/gateway.module';
     RepoConfigsModule,
     SessionsModule,
     GatewayModule,
+    TerminalModule,
   ],
 })
 export class AppModule {}
