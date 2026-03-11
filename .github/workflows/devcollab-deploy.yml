@@ -30,27 +30,31 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
 
-      - name: Prepare SSH variables
-        run: |
-          echo "DEPLOY_HOST=$(echo '${{ secrets.GCP_VM_HOST }}' | tr -d '\r\n')" >> $GITHUB_ENV
-          echo "DEPLOY_USER=$(echo '${{ secrets.GCP_VM_USER }}' | tr -d '\r\n')" >> $GITHUB_ENV
-
       - name: Ensure target directory exists
+        env:
+          DEPLOY_HOST: ${{ secrets.GCP_VM_HOST }}
+          DEPLOY_USER: ${{ secrets.GCP_VM_USER }}
         run: |
           ssh -o StrictHostKeyChecking=no \
-            $DEPLOY_USER@$DEPLOY_HOST \
-            "mkdir -p /home/$DEPLOY_USER/backend-infra/devcollab-backend /opt/devcollab /plans"
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "mkdir -p /home/${DEPLOY_USER}/backend-infra/devcollab-backend /opt/devcollab /plans"
 
       - name: Copy build to VM
+        env:
+          DEPLOY_HOST: ${{ secrets.GCP_VM_HOST }}
+          DEPLOY_USER: ${{ secrets.GCP_VM_USER }}
         run: |
           scp -o StrictHostKeyChecking=no -r \
             dist package.json package-lock.json \
-            $DEPLOY_USER@$DEPLOY_HOST:/home/$DEPLOY_USER/backend-infra/devcollab-backend/
+            "${DEPLOY_USER}@${DEPLOY_HOST}:/home/${DEPLOY_USER}/backend-infra/devcollab-backend/"
 
       - name: Deploy and restart
+        env:
+          DEPLOY_HOST: ${{ secrets.GCP_VM_HOST }}
+          DEPLOY_USER: ${{ secrets.GCP_VM_USER }}
         run: |
-          ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST \
-            "cd /home/$DEPLOY_USER/backend-infra/devcollab-backend && \
+          ssh -o StrictHostKeyChecking=no "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "cd /home/${DEPLOY_USER}/backend-infra/devcollab-backend && \
              npm ci --omit=dev && \
              (pm2 restart devcollab-backend || pm2 start ecosystem.config.js) && \
              pm2 save --force"
