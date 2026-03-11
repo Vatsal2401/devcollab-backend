@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PlansController } from './plans.controller';
 import { PlansService } from './plans.service';
+import { PlanAiService } from './plan-ai.service';
 import { PlanEntity } from './entities/plan.entity';
 import { PlanHistoryEntity } from './entities/plan-history.entity';
 import { ActivityEntity } from './entities/activity.entity';
@@ -16,7 +17,7 @@ import { GatewayModule } from '../gateway/gateway.module';
     GatewayModule,
   ],
   controllers: [PlansController],
-  providers: [PlansService],
+  providers: [PlansService, PlanAiService],
   exports: [PlansService, TypeOrmModule],
 })
 export class PlansModule {}

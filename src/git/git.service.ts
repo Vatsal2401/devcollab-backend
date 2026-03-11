@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { execSync, spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import { DevcollabGateway } from '../gateway/devcollab.gateway';
 
 const WORKSPACES_DIR = process.env.WORKSPACES_DIR || '/workspaces';
 const REPO_BASE = process.env.REPO_BASE || '/workspaces/preview';
@@ -10,6 +11,8 @@ const ENVS_DIR = process.env.ENVS_DIR || '/opt/devcollab/envs';
 @Injectable()
 export class GitService {
   private readonly logger = new Logger(GitService.name);
+
+  constructor(private readonly gateway: DevcollabGateway) {}
 
   private exec(cmd: string, cwd?: string): string {
     try {
@@ -22,43 +25,52 @@ export class GitService {
   async createWorktree(branch: string, baseBranch: string, planId: string): Promise<void> {
     const worktreePath = path.join(WORKSPACES_DIR, 'active');
 
-    // Remove existing worktree if present
-    if (fs.existsSync(worktreePath)) {
+    try {
+      // Remove existing worktree if present
+      if (fs.existsSync(worktreePath)) {
+        try {
+          this.exec(`git worktree remove ${worktreePath} --force`, REPO_BASE);
+        } catch (_) {}
+      }
+
+      // Create new branch from baseBranch
       try {
-        this.exec(`git worktree remove ${worktreePath} --force`, REPO_BASE);
-      } catch (_) {}
-    }
+        this.exec(`git branch ${branch} ${baseBranch}`, REPO_BASE);
+      } catch (_) {
+        // Branch may already exist
+      }
 
-    // Create new branch from baseBranch
-    try {
-      this.exec(`git branch ${branch} ${baseBranch}`, REPO_BASE);
-    } catch (_) {
-      // Branch may already exist
-    }
+      this.exec(`git worktree add ${worktreePath} ${branch}`, REPO_BASE);
+      this.logger.log(`Worktree created at ${worktreePath} for branch ${branch}`);
 
-    this.exec(`git worktree add ${worktreePath} ${branch}`, REPO_BASE);
-    this.logger.log(`Worktree created at ${worktreePath} for branch ${branch}`);
+      // Copy env files
+      this.copyEnvFiles(worktreePath);
 
-    // Copy env files
-    this.copyEnvFiles(worktreePath);
+      // npm install
+      try {
+        this.exec(`npm install --legacy-peer-deps`, worktreePath);
+      } catch (err) {
+        this.logger.warn(`npm install warning: ${err.message}`);
+      }
 
-    // npm install
-    try {
-      this.exec(`npm install --legacy-peer-deps`, worktreePath);
+      // Start Claude Code in tmux
+      const planFile = `/plans/${planId}.md`;
+      const sessionName = planId.toLowerCase().replace('plan-', 'plan');
+      try {
+        this.exec(
+          `tmux new-session -d -s ${sessionName} -c ${worktreePath} -- claude --context ${planFile}`,
+        );
+        this.logger.log(`Claude Code session started: ${sessionName}`);
+      } catch (err) {
+        this.logger.warn(`tmux/claude session start failed (may not be installed): ${err.message}`);
+      }
+
+      // Emit worktree created event
+      this.gateway.emitWorktreeCreated(planId, branch);
     } catch (err) {
-      this.logger.warn(`npm install warning: ${err.message}`);
-    }
-
-    // Start Claude Code in tmux
-    const planFile = `/plans/${planId}.md`;
-    const sessionName = planId.toLowerCase().replace('plan-', 'plan');
-    try {
-      this.exec(
-        `tmux new-session -d -s ${sessionName} -c ${worktreePath} -- claude --context ${planFile}`,
-      );
-      this.logger.log(`Claude Code session started: ${sessionName}`);
-    } catch (err) {
-      this.logger.warn(`tmux/claude session start failed (may not be installed): ${err.message}`);
+      this.logger.error(`Worktree creation failed for ${planId}: ${err.message}`);
+      this.gateway.emitWorktreeRemoved(planId, '');
+      throw err;
     }
   }
 

@@ -12,10 +12,12 @@ import {
 } from '@nestjs/common';
 import { IsString, IsOptional, MinLength } from 'class-validator';
 import { PlansService } from './plans.service';
+import { PlanAiService } from './plan-ai.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
 import { RejectPlanDto } from './dto/reject-plan.dto';
 import { FilterPlansDto } from './dto/filter-plans.dto';
+import { GeneratePlanDto } from './dto/generate-plan.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserEntity } from '../users/entities/user.entity';
@@ -42,7 +44,10 @@ class SetReadyDto {
 @Controller('plans')
 @UseGuards(JwtAuthGuard)
 export class PlansController {
-  constructor(private readonly plansService: PlansService) {}
+  constructor(
+    private readonly plansService: PlansService,
+    private readonly planAiService: PlanAiService,
+  ) {}
 
   @Get('stats')
   getStats() {
@@ -57,6 +62,22 @@ export class PlansController {
   @Get()
   findAll(@Query() filters: FilterPlansDto) {
     return this.plansService.findAll(filters);
+  }
+
+  @Post('generate')
+  @HttpCode(HttpStatus.OK)
+  generatePlan(@Body() dto: GeneratePlanDto) {
+    return this.planAiService.generatePlanContent({
+      type: dto.type,
+      title: dto.title,
+      description: dto.description,
+      reposAffected: dto.reposAffected,
+    });
+  }
+
+  @Get(':id/session')
+  getSession(@Param('id') id: string) {
+    return this.plansService.getSessionInfo(id);
   }
 
   @Get(':id')
