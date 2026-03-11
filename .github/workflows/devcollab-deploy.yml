@@ -18,14 +18,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: devcollab-backend/package-lock.json
 
       - name: Install Dependencies
-        working-directory: devcollab-backend
         run: npm ci
 
       - name: Build Project
-        working-directory: devcollab-backend
         run: npm run build
 
       - name: Setup SSH Agent
@@ -47,9 +44,7 @@ jobs:
       - name: Copy build to VM
         run: |
           scp -o StrictHostKeyChecking=no -r \
-            devcollab-backend/dist \
-            devcollab-backend/package.json \
-            devcollab-backend/package-lock.json \
+            dist package.json package-lock.json \
             $USER@$HOST:/home/$USER/backend-infra/devcollab-backend/
 
       - name: Deploy and restart
@@ -57,12 +52,7 @@ jobs:
           ssh -o StrictHostKeyChecking=no \
             $USER@$HOST << 'EOF'
               cd /home/$USER/backend-infra/devcollab-backend
-
-              # Install prod dependencies (compiles better-sqlite3 native module on target)
               npm ci --omit=dev
-
-              # Restart via ecosystem config (preserves env vars set during initial deploy)
               pm2 restart devcollab-backend || pm2 start ecosystem.config.js
-
               pm2 save --force
           EOF
