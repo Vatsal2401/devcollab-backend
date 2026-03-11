@@ -638,6 +638,57 @@ ${plan.qaNotes || '(QA adds test results and sign-off notes here)'}
     return this.historyRepo.find({ where: { planId: id }, order: { changedAt: 'DESC' } });
   }
 
+  async getStats(): Promise<Record<string, number>> {
+    const counts = await this.plansRepo
+      .createQueryBuilder('p')
+      .select('p.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('p.status')
+      .getRawMany();
+
+    const result: Record<string, number> = {
+      total: 0, draft: 0, ready: 0, inProgress: 0, inReview: 0,
+      merged: 0, qaApproved: 0, done: 0, blocked: 0, rejected: 0,
+    };
+
+    for (const row of counts) {
+      const c = parseInt(row.count, 10);
+      result.total += c;
+      const map: Record<string, string> = {
+        DRAFT: 'draft', READY: 'ready', OPEN: 'ready',
+        IN_PROGRESS: 'inProgress', IN_REVIEW: 'inReview',
+        MERGED: 'merged', QA_APPROVED: 'qaApproved',
+        DONE: 'done', BLOCKED: 'blocked', REJECTED: 'rejected',
+      };
+      const key = map[row.status];
+      if (key) result[key] = (result[key] || 0) + c;
+    }
+
+    return result;
+  }
+
+  async getActivity(limit = 50): Promise<ActivityEntity[]> {
+    return this.activityRepo.find({ order: { createdAt: 'DESC' }, take: limit });
+  }
+
+  async markDone(id: string, user: UserEntity): Promise<PlanEntity> {
+    const plan = await this.findById(id);
+    if (plan.status !== PlanStatus.QA_APPROVED) {
+      throw new BadRequestException(`Plan must be QA_APPROVED to mark done (current: ${plan.status})`);
+    }
+    if (!this.canManage(user)) {
+      throw new ForbiddenException('Only PM or Tech Lead can mark plans as done');
+    }
+
+    await this.recordHistory(id, user.id, 'status', plan.status, PlanStatus.DONE);
+    plan.status = PlanStatus.DONE;
+    const saved = await this.plansRepo.save(plan);
+    this.gateway.emitPlanUpdated(saved);
+    await this.logActivity(user.id, 'PLAN_DONE', id, `${user.username} marked plan as done`);
+
+    return saved;
+  }
+
   // ─── Cron: Lock Expiry ────────────────────────────────────────────────────
 
   @Cron(CronExpression.EVERY_MINUTE)

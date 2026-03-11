@@ -44,6 +44,16 @@ class SetReadyDto {
 export class PlansController {
   constructor(private readonly plansService: PlansService) {}
 
+  @Get('stats')
+  getStats() {
+    return this.plansService.getStats();
+  }
+
+  @Get('activity')
+  getActivity(@Query('limit') limit?: string) {
+    return this.plansService.getActivity(limit ? parseInt(limit, 10) : 50);
+  }
+
   @Get()
   findAll(@Query() filters: FilterPlansDto) {
     return this.plansService.findAll(filters);
@@ -122,6 +132,12 @@ export class PlansController {
   @HttpCode(HttpStatus.OK)
   unblock(@Param('id') id: string, @CurrentUser() user: UserEntity) {
     return this.plansService.unblock(id, user);
+  }
+
+  @Post(':id/done')
+  @HttpCode(HttpStatus.OK)
+  markDone(@Param('id') id: string, @CurrentUser() user: UserEntity) {
+    return this.plansService.markDone(id, user);
   }
 
   @Post(':id/rollback')
