@@ -11,8 +11,12 @@ import {
   HttpCode,
   HttpStatus,
   Headers,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Response } from 'express';
+import { JwtService } from '@nestjs/jwt';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { GithubService } from './github.service';
 import { GithubOAuthService } from './github-oauth.service';
 import { WorkspaceService } from './workspace.service';
@@ -26,6 +30,9 @@ export class GithubController {
     private readonly githubService: GithubService,
     private readonly githubOAuthService: GithubOAuthService,
     private readonly workspaceService: WorkspaceService,
+    private readonly jwtService: JwtService,
+    @InjectRepository(UserEntity)
+    private readonly usersRepo: Repository<UserEntity>,
   ) {}
 
   @Post('pr')
@@ -49,8 +56,19 @@ export class GithubController {
   }
 
   @Get('oauth/connect')
-  @UseGuards(JwtAuthGuard)
-  connect(@CurrentUser() user: UserEntity, @Res() res: Response) {
+  async connect(@Query('token') token: string, @Res() res: Response) {
+    // Token passed as query param because this is a browser navigation (no headers)
+    if (!token) throw new UnauthorizedException('Missing token');
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(token, {
+        secret: process.env.JWT_SECRET || 'devcollab-secret-change-in-prod',
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid token');
+    }
+    const user = await this.usersRepo.findOne({ where: { id: payload.sub } });
+    if (!user || !user.isActive) throw new UnauthorizedException('User not found');
     const url = this.githubOAuthService.getOAuthUrl(user.id);
     return res.redirect(url);
   }

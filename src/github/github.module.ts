@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { JwtModule } from '@nestjs/jwt';
 import { GithubController } from './github.controller';
 import { GithubService } from './github.service';
 import { GithubOAuthService } from './github-oauth.service';
@@ -13,6 +14,7 @@ import { GatewayModule } from '../gateway/gateway.module';
   imports: [
     TypeOrmModule.forFeature([PlanEntity, UserEntity, RepoConfigEntity]),
     GatewayModule,
+    JwtModule.register({ secret: process.env.JWT_SECRET || 'devcollab-secret-change-in-prod' }),
   ],
   controllers: [GithubController],
   providers: [GithubService, GithubOAuthService, WorkspaceService],
