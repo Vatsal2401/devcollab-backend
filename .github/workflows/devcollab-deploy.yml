@@ -1,0 +1,68 @@
+name: DevCollab Backend Deployment
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: devcollab-backend/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: devcollab-backend
+        run: npm ci
+
+      - name: Build Project
+        working-directory: devcollab-backend
+        run: npm run build
+
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
+
+      - name: Prepare SSH variables
+        run: |
+          echo "HOST=$(echo '${{ secrets.GCP_VM_HOST }}' | tr -d '\r\n')" >> $GITHUB_ENV
+          echo "USER=$(echo '${{ secrets.GCP_VM_USER }}' | tr -d '\r\n')" >> $GITHUB_ENV
+
+      - name: Ensure target directory exists
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+            $USER@$HOST \
+            "mkdir -p /home/$USER/backend-infra/devcollab-backend /opt/devcollab /plans"
+
+      - name: Copy build to VM
+        run: |
+          scp -o StrictHostKeyChecking=no -r \
+            devcollab-backend/dist \
+            devcollab-backend/package.json \
+            devcollab-backend/package-lock.json \
+            $USER@$HOST:/home/$USER/backend-infra/devcollab-backend/
+
+      - name: Deploy and restart
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+            $USER@$HOST << 'EOF'
+              cd /home/$USER/backend-infra/devcollab-backend
+
+              # Install prod dependencies (compiles better-sqlite3 native module on target)
+              npm ci --omit=dev
+
+              # Restart via ecosystem config (preserves env vars set during initial deploy)
+              pm2 restart devcollab-backend || pm2 start ecosystem.config.js
+
+              pm2 save --force
+          EOF
